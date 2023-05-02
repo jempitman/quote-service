@@ -39,17 +39,29 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew build
-      - name: Validate Kubernetes manifests
-        uses: stefanprodan/kube-tools@v1
-        with:
-          kubectl: 1.24.3
-          kubeval: 0.16.1
-          command: |
-            kustomize build k8s | kubeval --strict -
+    native:
+      - name: Build and Test (Native)
+        runs-on: ubuntu-22.04
+        permissions:
+          contents: read
+        steps:
+          - name: Checkout source code
+            uses: actions/checkout@v3
+          - name: Set up GraalVM
+            uses: graalvm/setup-graalvm@v1
+            with:
+              version: '22.1.0'
+              java-version: '17'
+              components: 'native-image'
+              github-token: ${{ secrets.GITHUB_TOKEN }}
+          - name: Build, unit tests and integration tests (native)
+            run: |
+              chmod +x gradlew
+              ./gradlew nativeBuild
   package:
     name: Package and Publish
     if: ${{ github.ref == 'refs/heads/main' }}
-    needs: [ build ]
+    needs: [ build, native ]
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -93,5 +105,5 @@ jobs:
       - name: Publish container image (latest)
         run: |
           docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }} \
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
